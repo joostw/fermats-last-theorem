@@ -24,6 +24,10 @@ on:
         type: choice
         options: [fast, exact]
         default: fast
+      max_targets:
+        description: 'At most this many targets per run when they are computed from a commit'
+        required: false
+        default: '200'
 
 permissions:
   contents: read
@@ -35,6 +39,7 @@ jobs:
     env:
       MODE: ${{ inputs.mode || 'fast' }}
       INPUT_TARGETS: ${{ inputs.targets }}
+      MAX_TARGETS: ${{ inputs.max_targets || '200' }}
       EVENT_NAME: ${{ github.event_name }}
       PR_BASE: ${{ github.event.pull_request.base.sha }}
       PUSH_BEFORE: ${{ github.event.before }}
@@ -58,9 +63,10 @@ jobs:
             t="$INPUT_TARGETS"
           else
             if [ "$EVENT_NAME" = pull_request ]; then base="$PR_BASE"; else base="$PUSH_BEFORE"; fi
-            t=$(python3 tools/stubcheck/changed_targets.py --repo . --base "$base" --head "$GITHUB_SHA")
+            t=$(python3 tools/stubcheck/changed_targets.py --repo . --base "$base" --head "$GITHUB_SHA" \
+                  --max-targets "$MAX_TARGETS" --list-file "$RUNNER_TEMP/targets.txt")
           fi
-          echo "Targets: ${t:-none}"
+          echo "Targets ($(echo $t | wc -w)): ${t:-none}"
           echo "TARGETS=$t" >> "$GITHUB_ENV"
 
       - name: Install elan
@@ -122,5 +128,6 @@ jobs:
           name: stubcheck-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/result.txt
+            ${{ runner.temp }}/targets.txt
             ${{ runner.temp }}/check/build.log
           if-no-files-found: ignore

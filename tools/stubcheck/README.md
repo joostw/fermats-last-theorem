@@ -34,8 +34,19 @@ otherwise do exactly the same.
 ## Running it on GitHub
 
 `.github/workflows/stub-check.yml` runs on every push or pull request that changes
-`P2M/Sol/`, `Theorems/` or `Definitions/`, and checks the proof modules that changed. It can
-also be started by hand (Actions → stub-check → Run workflow) with a list of targets.
+`P2M/Sol/`, `Theorems/` or `Definitions/`. It can also be started by hand (Actions → stub-check →
+Run workflow) with a list of targets. On a push or pull request it checks:
+
+- every proof that changed;
+- every statement that changed, and every proof that cites it (imports its `Theorems.Thm_…` module),
+  since those proofs relied on the old text;
+- for every definition file that changed, every theorem whose statement or proof names one of its
+  declarations (in the old or the new version), following other definition files that name them
+  for up to three rounds.
+
+Names are matched as identifier pieces in the source, so the selection errs on the side of checking
+too much. At most 200 targets are checked per run (direct changes first; `max_targets` changes the
+limit); the full list is uploaded with the run's artifacts, so the rest can be dispatched by hand.
 
 Two modes:
 
@@ -68,4 +79,5 @@ modules, `Check.lean`).
 
 - `stubcheck.py` — builds the check project and, with `--build`, runs and judges it.
 - `StubUtil.lean` — the `p2m_stub_erase_*` commands.
-- `changed_targets.py` — the targets touched between two commits (used by the workflow).
+- `changed_targets.py` — the targets touched between two commits, including the users of changed
+  statements and definitions (used by the workflow).
