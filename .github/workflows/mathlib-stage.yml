@@ -1,0 +1,73 @@
+name: mathlib-stage
+
+# One stage of the exact-mode Mathlib build: restore the newest cached progress, build for at
+# most ~5 hours (GitHub stops jobs at 6), save the progress. Called by mathlib-exact.yml.
+
+on:
+  workflow_call:
+    inputs:
+      stage:
+        type: number
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            /lakefile.lean
+            /lean-toolchain
+          sparse-checkout-cone-mode: false
+
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch Mathlib at the repository's pin
+        run: |
+          rev=$(sed -n 's/^require mathlib from git "[^"]*" @ "\([0-9a-f]*\)".*/\1/p' lakefile.lean)
+          test -n "$rev"
+          git init -q ~/mathlib
+          git -C ~/mathlib remote add origin https://github.com/leanprover-community/mathlib4.git
+          git -C ~/mathlib fetch -q --depth 1 origin "$rev"
+          git -C ~/mathlib checkout -q FETCH_HEAD
+          cp lean-toolchain ~/mathlib/lean-toolchain
+          echo "KEY=mathlib-exact-$rev-$(tr ':/' '--' < lean-toolchain)" >> "$GITHUB_ENV"
+
+      - name: Restore progress
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/mathlib/.lake
+          key: ${{ env.KEY }}-complete
+          restore-keys: ${{ env.KEY }}-
+
+      - name: Build (at most 5 hours)
+        if: steps.restore.outputs.cache-hit != 'true'
+        run: |
+          cd ~/mathlib
+          timeout 300m lake build --no-cache Mathlib || echo "stage ${{ inputs.stage }} stopped; progress is saved"
+          if lake build --no-build --no-cache Mathlib >/dev/null 2>&1; then
+            echo "DONE=complete" >> "$GITHUB_ENV"
+          else
+            echo "DONE=partial-${{ github.run_id }}-${{ inputs.stage }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Save progress
+        if: steps.restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/mathlib/.lake
+          key: ${{ env.KEY }}-${{ env.DONE }}

@@ -1,0 +1,126 @@
+name: stub-check
+
+# Checks changed (or chosen) proofs against the statements they cite, with every other
+# statement replaced by an axiom stub. See tools/stubcheck/README.md.
+#
+#   fast  (default): Lean 4.33.0 with Mathlib's published build cache for the pinned commit.
+#                    Minutes per run. The repository itself pins Lean 4.33.1, a patch release.
+#   exact          : Lean 4.33.1 with Mathlib built from source by the `mathlib-exact` workflow,
+#                    which must have completed once.
+
+on:
+  push:
+    paths: ['P2M/Sol/**', 'Theorems/**', 'Definitions/**']
+  pull_request:
+    paths: ['P2M/Sol/**', 'Theorems/**', 'Definitions/**']
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'Theorem names or module stems, space-separated (empty: the proofs changed by the last commit)'
+        required: false
+        default: ''
+      mode:
+        description: 'fast (Lean 4.33.0 + Mathlib cache) or exact (Lean 4.33.1 + mathlib-exact build)'
+        type: choice
+        options: [fast, exact]
+        default: fast
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      MODE: ${{ inputs.mode || 'fast' }}
+      INPUT_TARGETS: ${{ inputs.targets }}
+      EVENT_NAME: ${{ github.event_name }}
+      PR_BASE: ${{ github.event.pull_request.base.sha }}
+      PUSH_BEFORE: ${{ github.event.before }}
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          sparse-checkout: |
+            /*
+            !/html/
+          sparse-checkout-cone-mode: false
+
+      - name: Determine targets
+        run: |
+          if [ -n "$INPUT_TARGETS" ]; then
+            t="$INPUT_TARGETS"
+          else
+            if [ "$EVENT_NAME" = pull_request ]; then base="$PR_BASE"; else base="$PUSH_BEFORE"; fi
+            t=$(python3 tools/stubcheck/changed_targets.py --repo . --base "$base" --head "$GITHUB_SHA")
+          fi
+          echo "Targets: ${t:-none}"
+          echo "TARGETS=$t" >> "$GITHUB_ENV"
+
+      - name: Install elan
+        if: env.TARGETS != ''
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch Mathlib at the repository's pin
+        if: env.TARGETS != ''
+        run: |
+          rev=$(sed -n 's/^require mathlib from git "[^"]*" @ "\([0-9a-f]*\)".*/\1/p' lakefile.lean)
+          test -n "$rev"
+          git init -q ~/mathlib
+          git -C ~/mathlib remote add origin https://github.com/leanprover-community/mathlib4.git
+          git -C ~/mathlib fetch -q --depth 1 origin "$rev"
+          git -C ~/mathlib checkout -q FETCH_HEAD
+          echo "MATHLIB_REV=$rev" >> "$GITHUB_ENV"
+          echo "TC_KEY=$(tr ':/' '--' < lean-toolchain)" >> "$GITHUB_ENV"
+
+      - name: Mathlib build cache (fast mode)
+        if: env.TARGETS != '' && env.MODE == 'fast'
+        run: cd ~/mathlib && lake exe cache get
+
+      - name: Mathlib from source (exact mode)
+        if: env.TARGETS != '' && env.MODE == 'exact'
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/mathlib/.lake
+          key: mathlib-exact-${{ env.MATHLIB_REV }}-${{ env.TC_KEY }}-complete
+          fail-on-cache-miss: true
+
+      - name: Use the repository's toolchain for Mathlib (exact mode)
+        if: env.TARGETS != '' && env.MODE == 'exact'
+        run: cp lean-toolchain ~/mathlib/lean-toolchain
+
+      - name: Stub check
+        if: env.TARGETS != ''
+        run: |
+          args=()
+          for t in $TARGETS; do args+=(--target "$t"); done
+          if [ "$MODE" = fast ]; then args+=(--toolchain "$(cat ~/mathlib/lean-toolchain)"); fi
+          python3 tools/stubcheck/stubcheck.py --repo . --out "$RUNNER_TEMP/check" "${args[@]}" \
+            --mathlib-path ~/mathlib --build --no-cache | tee "$RUNNER_TEMP/result.txt"
+
+      - name: Summary
+        if: always() && env.TARGETS != ''
+        run: |
+          {
+            echo "### Stub check ($MODE mode)"
+            echo '```'
+            cat "$RUNNER_TEMP/result.txt" 2>/dev/null || echo "no result (see the log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always() && env.TARGETS != ''
+        with:
+          name: stubcheck-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/result.txt
+            ${{ runner.temp }}/check/build.log
+          if-no-files-found: ignore

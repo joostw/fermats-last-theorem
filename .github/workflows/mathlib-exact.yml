@@ -1,0 +1,25 @@
+name: mathlib-exact
+
+# Builds Mathlib from source with the repository's own toolchain (Lean 4.33.1), for the
+# `exact` mode of stub-check. Run it once by hand; it takes several hours, spread over
+# sequential stages that each fit GitHub's 6-hour job limit. A stage that finds the build
+# already complete does nothing. If the last stage ends partial, run the workflow again.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stage1:
+    uses: ./.github/workflows/mathlib-stage.yml
+    with:
+      stage: 1
+  stage2:
+    needs: stage1
+    uses: ./.github/workflows/mathlib-stage.yml
+    with:
+      stage: 2
+  stage3:
+    needs: stage2
+    uses: ./.github/workflows/mathlib-stage.yml
+    with:
+      stage: 3
