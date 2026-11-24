@@ -18,6 +18,38 @@ namespace ICTProof
 
 variable (F : Type) [Field F] [NumberField F]
 
+/-- Continuity at `a` from convergence along the non-trivial filters `𝒢 ≤ 𝓝 a` on which a
+compact-valued auxiliary map converges. Uses only cluster points of filters (Mathlib's
+definition of `IsCompact`); no ultrafilter is formed. -/
+private theorem continuousAt_of_forall_tendsto_of_isCompact
+    {α β Y : Type*} [TopologicalSpace α] [TopologicalSpace β] [TopologicalSpace Y]
+    {g : α → Y} {a : α} (κ : α → β) {K : Set β} (hK : IsCompact K) (hκ : ∀ p, κ p ∈ K)
+    (h : ∀ (𝒢 : Filter α) [𝒢.NeBot], 𝒢 ≤ 𝓝 a → ∀ k ∈ K, Tendsto κ 𝒢 (𝓝 k) →
+      Tendsto g 𝒢 (𝓝 (g a))) :
+    ContinuousAt g a := by
+  by_contra hne
+  rw [ContinuousAt, Filter.tendsto_iff_forall_eventually_mem] at hne
+  obtain ⟨s, hs, hfreq⟩ := not_forall₂.mp hne
+  -- the points near `a` where `g` misses `s` form a non-trivial filter
+  have h₀ : (𝓝 a ⊓ 𝓟 {x | g x ∉ s}).NeBot :=
+    Filter.frequently_iff_neBot.mp (Filter.not_eventually.mp hfreq)
+  -- compactness: the image of that filter under `κ` has a cluster point `k ∈ K`
+  obtain ⟨k, hkK, hk⟩ := hK (f := Filter.map κ (𝓝 a ⊓ 𝓟 {x | g x ∉ s}))
+    (Filter.le_principal_iff.mpr (Filter.mem_map.mpr (Filter.univ_mem' fun p => hκ p)))
+  -- refine the filter so that `κ` converges to `k` along it; it stays non-trivial
+  have h𝒢 : ((𝓝 a ⊓ 𝓟 {x | g x ∉ s}) ⊓ Filter.comap κ (𝓝 k)).NeBot := by
+    refine (Filter.map_neBot_iff κ).mp ?_
+    rw [Filter.push_pull, inf_comm]
+    exact hk.neBot
+  have hg := h ((𝓝 a ⊓ 𝓟 {x | g x ∉ s}) ⊓ Filter.comap κ (𝓝 k)) (inf_le_left.trans inf_le_left) k hkK
+    (Filter.tendsto_comap.mono_left inf_le_right)
+  -- along the refined filter `g` eventually lies in `s`, and eventually outside it
+  have h₁ : ∀ᶠ x in (𝓝 a ⊓ 𝓟 {x | g x ∉ s}) ⊓ Filter.comap κ (𝓝 k), g x ∈ s := hg hs
+  have h₂ : ∀ᶠ x in (𝓝 a ⊓ 𝓟 {x | g x ∉ s}) ⊓ Filter.comap κ (𝓝 k), g x ∉ s :=
+    (inf_le_left.trans inf_le_right : _ ≤ 𝓟 {x | g x ∉ s}) (Filter.mem_principal_self _)
+  obtain ⟨x, hx₁, hx₂⟩ := (h₁.and h₂).exists
+  exact hx₂ hx₁
+
 theorem isClosed_adelicBorel : IsClosed (adelicBorel (𝓞 F) F : Set (AdelicGL2 (𝓞 F) F)) := by
   have : (adelicBorel (𝓞 F) F : Set (AdelicGL2 (𝓞 F) F))
       = (fun g : AdelicGL2 (𝓞 F) F => (g : Matrix (Fin 2) (Fin 2) (AdeleRing (𝓞 F) F)) 1 0) ⁻¹' {0} := by
@@ -55,15 +87,9 @@ theorem main
     rw [eq_mul_inv_iff_mul_eq]; exact (hdecI g).symm
   rw [(hU.prod isOpen_univ).continuousOn_iff]
   rintro ⟨x₀, g₀⟩ ⟨hx₀, -⟩
-  rw [continuousAt_iff_ultrafilter]
-  intro 𝒰 h𝒰
-
-  obtain ⟨k₁, hk₁, hk𝒰⟩ : ∃ k₁ ∈ Kc, (↑(𝒰.map (fun p : X × AdelicGL2 (𝓞 F) F => kI p.2)) : Filter _) ≤ 𝓝 k₁ := by
-    apply hKc_cpt.ultrafilter_le_nhds
-    rw [Ultrafilter.coe_map, Filter.le_principal_iff, Filter.mem_map]
-    exact Filter.univ_mem' (fun p => hkI_mem p.2)
-  have hk : Tendsto (fun p : X × AdelicGL2 (𝓞 F) F => kI p.2) 𝒰 (𝓝 k₁) := by
-    rw [Tendsto, ← Ultrafilter.coe_map]; exact hk𝒰
+  refine continuousAt_of_forall_tendsto_of_isCompact (fun p : X × AdelicGL2 (𝓞 F) F => kI p.2)
+    hKc_cpt (fun p => hkI_mem p.2) ?_
+  intro 𝒰 _ h𝒰 k₁ hk₁ hk
   have hx : Tendsto (fun p : X × AdelicGL2 (𝓞 F) F => p.1) 𝒰 (𝓝 x₀) :=
     (continuous_fst.tendsto (x₀, g₀)).mono_left h𝒰
   have hg : Tendsto (fun p : X × AdelicGL2 (𝓞 F) F => p.2) 𝒰 (𝓝 g₀) :=
