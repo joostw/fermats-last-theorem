@@ -21,15 +21,15 @@ mentions a site or a sheaf: for `H` of finite type over `ℤ`, a torsor is a fin
 
 * `HopfTorsor.Coaction R H A`: a right coaction of `H` on the `R`-algebra `A`.
 * `HopfTorsor.Coaction.trivial R H`: `H` coacting on itself by comultiplication.
-* `HopfTorsor.Coaction.baseChange`: the coaction on `R' ⊗[R] A`.
-* `HopfTorsor.Coaction.Iso`: isomorphisms of algebras with coaction.
+* `HopfTorsor.Coaction.baseChangeρ`: the coaction on `R' ⊗[R] A`.
+* `HopfTorsor.CoactionIso`: isomorphisms of algebras with coaction.
 * `HopfTorsor.IsTorsor`: faithfully flat, and trivial after a faithfully flat base change.
 
 ## Main results
 
 * `HopfTorsor.Coaction.trivial_isTorsor`: the trivial coaction is a torsor when `H` is
   faithfully flat over `R`.
-* `HopfTorsor.IsTorsor.of_iso`: being a torsor is invariant under isomorphism of coactions.
+* `HopfTorsor.IsTorsor.of_coactionIso`: being a torsor is invariant under isomorphism of coactions.
 * `HopfTorsor.transl_bijective`: translation of the trivial torsor by a point is bijective; its
   inverse is translation by the convolution inverse `g ∘ S`.
 * `HopfTorsor.eq_transl_of_equivariant`: every equivariant endomorphism of the trivial torsor
@@ -87,25 +87,24 @@ variable {A : Type u} [CommRing A] [Algebra R A]
 variable (R' : Type u) [CommRing R'] [Algebra R R']
 
 /-- The coaction after base change along `R → R'`, on `R' ⊗[R] A`, still with `H` over `R`. -/
-noncomputable def baseChange (c : Coaction R H A) : R' ⊗[R] A →ₐ[R] (R' ⊗[R] A) ⊗[R] H :=
+noncomputable def baseChangeρ (c : Coaction R H A) : R' ⊗[R] A →ₐ[R] (R' ⊗[R] A) ⊗[R] H :=
   (Algebra.TensorProduct.assoc R R R R' A H).symm.toAlgHom.comp
     (Algebra.TensorProduct.map (AlgHom.id R R') c.ρ)
-
-variable {B : Type u} [CommRing B] [Algebra R B]
-
-/-- An isomorphism of algebras with coaction: an algebra isomorphism `A ≃ B` that intertwines
-the coactions. Geometrically: a `G`-equivariant isomorphism `Spec B ≅ Spec A`. -/
-structure Iso (c : Coaction R H A) (d : Coaction R H B) where
-  /-- The underlying algebra isomorphism. -/
-  e : A ≃ₐ[R] B
-  /-- `(e ⊗ id) ∘ ρ_A = ρ_B ∘ e`. -/
-  comm : (Algebra.TensorProduct.map (e : A →ₐ[R] B) (AlgHom.id R H)).comp c.ρ = d.ρ.comp e
 
 end Coaction
 
 open Coaction
 
 variable {R H}
+
+/-- An isomorphism of algebras with coaction: an algebra isomorphism `A ≃ B` that intertwines
+the coactions. Geometrically: a `G`-equivariant isomorphism `Spec B ≅ Spec A`. -/
+structure CoactionIso {A B : Type u} [CommRing A] [Algebra R A] [CommRing B] [Algebra R B]
+    (c : Coaction R H A) (d : Coaction R H B) where
+  /-- The underlying algebra isomorphism. -/
+  e : A ≃ₐ[R] B
+  /-- `(e ⊗ id) ∘ ρ_A = ρ_B ∘ e`. -/
+  comm : (Algebra.TensorProduct.map (e : A →ₐ[R] B) (AlgHom.id R H)).comp c.ρ = d.ρ.comp e
 
 /-- The coaction `c` on `A` is a torsor: `A` is faithfully flat over `R`, and after some faithfully
 flat base change `R → R'` it becomes isomorphic, as an `R'`-algebra with coaction, to the trivial
@@ -116,8 +115,8 @@ structure IsTorsor {A : Type u} [CommRing A] [Algebra R A] (c : Coaction R H A) 
     Module.FaithfullyFlat R R' ∧
     ∃ e : R' ⊗[R] A ≃ₐ[R'] R' ⊗[R] H,
       (Algebra.TensorProduct.map (e.toAlgHom.restrictScalars R) (AlgHom.id R H)).comp
-          (c.baseChange R') =
-        (Coaction.trivial.baseChange R').comp (e.toAlgHom.restrictScalars R)
+          (c.baseChangeρ R') =
+        (Coaction.trivial.baseChangeρ R').comp (e.toAlgHom.restrictScalars R)
 
 /-- The trivial coaction is a torsor, as soon as `H` is faithfully flat over `R` (for an affine
 group scheme of finite type over a field or over `ℤ`, flat suffices: the counit makes `R` a
@@ -132,13 +131,13 @@ theorem Coaction.trivial_isTorsor [Module.FaithfullyFlat R H] :
 
 /-- Base change intertwines with an isomorphism of coactions: for `i : A ≃ B` compatible with the
 coactions, `R' ⊗ i⁻¹ : R' ⊗ B ≃ R' ⊗ A` is compatible with the base-changed coactions. -/
-theorem Coaction.Iso.baseChange_symm {A B : Type u} [CommRing A] [Algebra R A] [CommRing B]
-    [Algebra R B] {c : Coaction R H A} {d : Coaction R H B} (i : Coaction.Iso c d)
+theorem CoactionIso.baseChange_symm {A B : Type u} [CommRing A] [Algebra R A] [CommRing B]
+    [Algebra R B] {c : Coaction R H A} {d : Coaction R H B} (i : CoactionIso c d)
     (R' : Type u) [CommRing R'] [Algebra R R'] :
     (Algebra.TensorProduct.map
         ((Algebra.TensorProduct.congr (AlgEquiv.refl : R' ≃ₐ[R'] R') i.e.symm).toAlgHom.restrictScalars R)
-        (AlgHom.id R H)).comp (d.baseChange R') =
-      (c.baseChange R').comp
+        (AlgHom.id R H)).comp (d.baseChangeρ R') =
+      (c.baseChangeρ R').comp
         ((Algebra.TensorProduct.congr (AlgEquiv.refl : R' ≃ₐ[R'] R') i.e.symm).toAlgHom.restrictScalars R) := by
   -- `ρ_A ∘ i⁻¹ = (i⁻¹ ⊗ id) ∘ ρ_B`, from `i.comm`
   have hinv : ∀ y : A ⊗[R] H, Algebra.TensorProduct.map (i.e.symm : B →ₐ[R] A) (AlgHom.id R H)
@@ -157,10 +156,10 @@ theorem Coaction.Iso.baseChange_symm {A B : Type u} [CommRing A] [Algebra R A] [
       simpa using this
     rw [← h1, hinv]
   ext x
-  · simp [baseChange, Algebra.TensorProduct.one_def]
+  · simp [baseChangeρ, Algebra.TensorProduct.one_def]
   · have hf : ((Algebra.TensorProduct.congr (AlgEquiv.refl : R' ≃ₐ[R'] R') i.e.symm :
         R' ⊗[R] B →ₐ[R'] R' ⊗[R] A) ((1 : R') ⊗ₜ[R] x)) = (1 : R') ⊗ₜ[R] i.e.symm x := rfl
-    simp only [baseChange, AlgHom.coe_comp, AlgHom.coe_restrictScalars', Function.comp_apply,
+    simp only [baseChangeρ, AlgHom.coe_comp, AlgHom.coe_restrictScalars', Function.comp_apply,
       Algebra.TensorProduct.includeRight_apply, Algebra.TensorProduct.map_tmul, map_one]
     rw [hf, Algebra.TensorProduct.map_tmul, hρ x]
     induction d.ρ x using TensorProduct.induction_on with
@@ -169,8 +168,8 @@ theorem Coaction.Iso.baseChange_symm {A B : Type u} [CommRing A] [Algebra R A] [
     | add y z hy hz => simp only [map_add, TensorProduct.tmul_add, hy, hz]
 
 /-- Being a torsor is invariant under isomorphism of algebras with coaction. -/
-theorem IsTorsor.of_iso {A B : Type u} [CommRing A] [Algebra R A] [CommRing B] [Algebra R B]
-    {c : Coaction R H A} {d : Coaction R H B} (i : Coaction.Iso c d) (hc : IsTorsor c) :
+theorem IsTorsor.of_coactionIso {A B : Type u} [CommRing A] [Algebra R A] [CommRing B] [Algebra R B]
+    {c : Coaction R H A} {d : Coaction R H B} (i : CoactionIso c d) (hc : IsTorsor c) :
     IsTorsor d := by
   obtain ⟨hA, R', _, _, hR', e, he⟩ := hc
   refine ⟨Module.FaithfullyFlat.of_linearEquiv R A i.e.symm.toLinearEquiv, R', inferInstance,
@@ -208,13 +207,13 @@ lemma map_comp_comul_eq (g : WithConv (H →ₐ[R] S)) :
   congr 1
   ext a <;> simp
 
-lemma transl_comp_includeRight (g : WithConv (H →ₐ[R] S)) :
+lemma transl_includeRight (g : WithConv (H →ₐ[R] S)) :
     ((transl (R := R) (H := H) g).restrictScalars R).comp Algebra.TensorProduct.includeRight =
       (Algebra.TensorProduct.map g.ofConv (AlgHom.id R H)).comp (Bialgebra.comulAlgHom R H) := by
   ext h
   simp [transl]
 
-lemma transl_comp_includeLeft (g : WithConv (H →ₐ[R] S)) :
+lemma transl_includeLeft (g : WithConv (H →ₐ[R] S)) :
     ((transl (R := R) (H := H) g).restrictScalars R).comp
         (Algebra.TensorProduct.includeLeft : S →ₐ[R] S ⊗[R] H) =
       Algebra.TensorProduct.includeLeft := by
@@ -222,14 +221,14 @@ lemma transl_comp_includeLeft (g : WithConv (H →ₐ[R] S)) :
   simp [transl]
 
 /-- Translations compose by convolution. -/
-lemma transl_comp (g g' : WithConv (H →ₐ[R] S)) :
+lemma transl_comp_eq_mul (g g' : WithConv (H →ₐ[R] S)) :
     (transl (R := R) (H := H) g').comp (transl g) = transl (g * g') := by
   apply Algebra.TensorProduct.ext
   · exact Subsingleton.elim _ _
-  · have e1 := transl_comp_includeRight (R := R) (H := H) g
-    have e2 := transl_comp_includeRight (R := R) (H := H) g'
-    have e3 := transl_comp_includeRight (R := R) (H := H) (g * g')
-    have eL := transl_comp_includeLeft (R := R) (H := H) g'
+  · have e1 := transl_includeRight (R := R) (H := H) g
+    have e2 := transl_includeRight (R := R) (H := H) g'
+    have e3 := transl_includeRight (R := R) (H := H) (g * g')
+    have eL := transl_includeLeft (R := R) (H := H) g'
     rw [map_comp_comul_eq] at e1 e2 e3
     change ((transl g').restrictScalars R).comp
         (((transl g).restrictScalars R).comp Algebra.TensorProduct.includeRight) =
@@ -237,10 +236,10 @@ lemma transl_comp (g g' : WithConv (H →ₐ[R] S)) :
     rw [e1, e3, AlgHom.comp_convMul_distrib, ← AlgHom.comp_assoc, eL, e2,
       AlgHom.comp_convMul_distrib, toConv_ofConv, toConv_ofConv, toConv_ofConv, mul_assoc]
 
-lemma transl_one : transl (R := R) (H := H) (1 : WithConv (H →ₐ[R] S)) = AlgHom.id S _ := by
+lemma transl_one_eq_id : transl (R := R) (H := H) (1 : WithConv (H →ₐ[R] S)) = AlgHom.id S _ := by
   apply Algebra.TensorProduct.ext
   · exact Subsingleton.elim _ _
-  · have e := transl_comp_includeRight (R := R) (H := H) (1 : WithConv (H →ₐ[R] S))
+  · have e := transl_includeRight (R := R) (H := H) (1 : WithConv (H →ₐ[R] S))
     rw [map_comp_comul_eq] at e
     change ((transl (1 : WithConv (H →ₐ[R] S))).restrictScalars R).comp
         Algebra.TensorProduct.includeRight = Algebra.TensorProduct.includeRight
@@ -294,11 +293,11 @@ lemma transl_bijective (g : WithConv (H →ₐ[R] S)) :
     Function.Bijective (transl (R := R) (H := H) g) := by
   refine Function.bijective_iff_has_inverse.mpr ⟨transl (convInv g), fun y => ?_, fun y => ?_⟩
   · have := congrArg (fun φ : S ⊗[R] H →ₐ[S] S ⊗[R] H => φ y)
-      (transl_comp (R := R) (H := H) g (convInv g))
-    simpa [mul_convInv, transl_one] using this
+      (transl_comp_eq_mul (R := R) (H := H) g (convInv g))
+    simpa [mul_convInv, transl_one_eq_id] using this
   · have := congrArg (fun φ : S ⊗[R] H →ₐ[S] S ⊗[R] H => φ y)
-      (transl_comp (R := R) (H := H) (convInv g) g)
-    simpa [convInv_mul, transl_one] using this
+      (transl_comp_eq_mul (R := R) (H := H) (convInv g) g)
+    simpa [convInv_mul, transl_one_eq_id] using this
 
 end Translation
 
@@ -319,15 +318,15 @@ noncomputable def counitS : S ⊗[R] H →ₐ[S] S :=
 the point `counitS ∘ φ ∘ (h ↦ 1 ⊗ h)`. -/
 theorem eq_transl_of_equivariant (φ : S ⊗[R] H →ₐ[S] S ⊗[R] H)
     (hφ : (Algebra.TensorProduct.map (φ.restrictScalars R) (AlgHom.id R H)).comp
-        ((Coaction.trivial (R := R) (H := H)).baseChange S) =
-      ((Coaction.trivial (R := R) (H := H)).baseChange S).comp (φ.restrictScalars R)) :
+        ((Coaction.trivial (R := R) (H := H)).baseChangeρ S) =
+      ((Coaction.trivial (R := R) (H := H)).baseChangeρ S).comp (φ.restrictScalars R)) :
     φ = transl (toConv (((counitS (R := R) (H := H)).restrictScalars R).comp
         ((φ.restrictScalars R).comp Algebra.TensorProduct.includeRight))) := by
   apply Algebra.TensorProduct.ext
   · exact Subsingleton.elim _ _
   · change (φ.restrictScalars R).comp Algebra.TensorProduct.includeRight =
       ((transl _).restrictScalars R).comp Algebra.TensorProduct.includeRight
-    rw [transl_comp_includeRight]
+    rw [transl_includeRight]
     ext h
     let Φ : (S ⊗[R] H) ⊗[R] H →ₐ[R] S ⊗[R] H :=
       Algebra.TensorProduct.map ((counitS (R := R) (H := H)).restrictScalars R) (AlgHom.id R H)
@@ -343,14 +342,14 @@ theorem eq_transl_of_equivariant (φ : S ⊗[R] H →ₐ[S] S ⊗[R] H)
       | zero => simp
       | tmul a b => simp [Φ, counitS, Algebra.algebraMap_eq_smul_one]
       | add y z hy hz => simp only [TensorProduct.tmul_add, map_add, hy, hz]
-    have key1 : ∀ y : S ⊗[R] H, Φ ((Coaction.trivial (R := R) (H := H)).baseChange S y) = y := by
+    have key1 : ∀ y : S ⊗[R] H, Φ ((Coaction.trivial (R := R) (H := H)).baseChangeρ S y) = y := by
       intro y
-      have : Φ.comp ((Coaction.trivial (R := R) (H := H)).baseChange S) = AlgHom.id R _ := by
+      have : Φ.comp ((Coaction.trivial (R := R) (H := H)).baseChangeρ S) = AlgHom.id R _ := by
         apply Algebra.TensorProduct.ext
         · ext s
-          simp [Φ, counitS, Coaction.baseChange, Coaction.trivial, Algebra.TensorProduct.one_def]
+          simp [Φ, counitS, Coaction.baseChangeρ, Coaction.trivial, Algebra.TensorProduct.one_def]
         · ext h
-          simp only [AlgHom.coe_comp, Function.comp_apply, Coaction.baseChange,
+          simp only [AlgHom.coe_comp, Function.comp_apply, Coaction.baseChangeρ,
             Algebra.TensorProduct.includeRight_apply]
           change Φ ((Algebra.TensorProduct.assoc R R R S H H).symm
             ((1 : S) ⊗ₜ[R] Bialgebra.comulAlgHom R H h)) = _
@@ -367,17 +366,17 @@ theorem eq_transl_of_equivariant (φ : S ⊗[R] H →ₐ[S] S ⊗[R] H)
       | zero => simp
       | tmul a b => simp [Φ]
       | add y z hy hz => simp only [TensorProduct.tmul_add, map_add, hy, hz]
-    have hbc : (Coaction.trivial (R := R) (H := H)).baseChange S ((1 : S) ⊗ₜ[R] h) =
+    have hbc : (Coaction.trivial (R := R) (H := H)).baseChangeρ S ((1 : S) ⊗ₜ[R] h) =
         (Algebra.TensorProduct.assoc R R R S H H).symm
           ((1 : S) ⊗ₜ[R] Bialgebra.comulAlgHom R H h) := rfl
     have hφh := congrArg (fun ψ : S ⊗[R] H →ₐ[R] (S ⊗[R] H) ⊗[R] H => ψ ((1 : S) ⊗ₜ[R] h)) hφ
     simp only [AlgHom.coe_comp, Function.comp_apply] at hφh
     rw [hbc] at hφh
     calc (φ.restrictScalars R).comp Algebra.TensorProduct.includeRight h
-        = Φ ((Coaction.trivial (R := R) (H := H)).baseChange S (φ ((1 : S) ⊗ₜ[R] h))) :=
+        = Φ ((Coaction.trivial (R := R) (H := H)).baseChangeρ S (φ ((1 : S) ⊗ₜ[R] h))) :=
           (key1 _).symm
       _ = _ := by
-          change Φ (((Coaction.trivial (R := R) (H := H)).baseChange S).comp (φ.restrictScalars R)
+          change Φ (((Coaction.trivial (R := R) (H := H)).baseChangeρ S).comp (φ.restrictScalars R)
             ((1 : S) ⊗ₜ[R] h)) = _
           rw [AlgHom.comp_apply, ← hφh, key2]
           rfl
@@ -385,8 +384,8 @@ theorem eq_transl_of_equivariant (φ : S ⊗[R] H →ₐ[S] S ⊗[R] H)
 /-- An equivariant endomorphism of the trivial torsor is bijective. -/
 theorem bijective_of_equivariant (φ : S ⊗[R] H →ₐ[S] S ⊗[R] H)
     (hφ : (Algebra.TensorProduct.map (φ.restrictScalars R) (AlgHom.id R H)).comp
-        ((Coaction.trivial (R := R) (H := H)).baseChange S) =
-      ((Coaction.trivial (R := R) (H := H)).baseChange S).comp (φ.restrictScalars R)) :
+        ((Coaction.trivial (R := R) (H := H)).baseChangeρ S) =
+      ((Coaction.trivial (R := R) (H := H)).baseChangeρ S).comp (φ.restrictScalars R)) :
     Function.Bijective φ := by
   rw [eq_transl_of_equivariant φ hφ]
   exact transl_bijective _
@@ -400,15 +399,15 @@ theorem Coaction.baseChange_map_comm {A B : Type u} [CommRing A] [Algebra R A] [
     (R' : Type u) [CommRing R'] [Algebra R R'] :
     (Algebra.TensorProduct.map
         ((Algebra.TensorProduct.map (AlgHom.id R' R') f).restrictScalars R) (AlgHom.id R H)).comp
-        (c.baseChange R') =
-      (d.baseChange R').comp ((Algebra.TensorProduct.map (AlgHom.id R' R') f).restrictScalars R) := by
+        (c.baseChangeρ R') =
+      (d.baseChangeρ R').comp ((Algebra.TensorProduct.map (AlgHom.id R' R') f).restrictScalars R) := by
   have hρ : ∀ a : A, d.ρ (f a) = Algebra.TensorProduct.map f (AlgHom.id R H) (c.ρ a) := fun a =>
     (congrArg (fun φ : A →ₐ[R] B ⊗[R] H => φ a) hf).symm
   apply Algebra.TensorProduct.ext
   · ext x
-    simp [baseChange, Algebra.TensorProduct.one_def]
+    simp [baseChangeρ, Algebra.TensorProduct.one_def]
   · ext a
-    simp only [baseChange, AlgHom.coe_comp, AlgHom.coe_restrictScalars', Function.comp_apply,
+    simp only [baseChangeρ, AlgHom.coe_comp, AlgHom.coe_restrictScalars', Function.comp_apply,
       Algebra.TensorProduct.includeRight_apply, Algebra.TensorProduct.map_tmul, map_one]
     rw [hρ a]
     induction c.ρ a using TensorProduct.induction_on with
@@ -421,7 +420,7 @@ theorem Coaction.baseChange_map_comm {A B : Type u} [CommRing A] [Algebra R A] [
 algebras with coaction from `A` to the trivial torsor `H`. -/
 theorem IsTorsor.nonempty_iso_trivial_of_point {A : Type u} [CommRing A] [Algebra R A]
     {c : Coaction R H A} (hc : IsTorsor c) (x : A →ₐ[R] R) :
-    Nonempty (Coaction.Iso c (Coaction.trivial (R := R) (H := H))) := by
+    Nonempty (CoactionIso c (Coaction.trivial (R := R) (H := H))) := by
   let κ : A ⊗[R] H →ₐ[R] H := (Algebra.TensorProduct.lid R H : R ⊗[R] H →ₐ[R] H).comp
     (Algebra.TensorProduct.map x (AlgHom.id R H))
   let ψ : A →ₐ[R] H := κ.comp c.ρ
@@ -469,12 +468,12 @@ theorem IsTorsor.nonempty_iso_trivial_of_point {A : Type u} [CommRing A] [Algebr
       | tmul a h => simp
       | add y z hy hz => simp only [map_add, hy, hz]
     have he' : (Algebra.TensorProduct.map (e.symm.toAlgHom.restrictScalars R) (AlgHom.id R H)).comp
-        ((Coaction.trivial (R := R) (H := H)).baseChange R') =
-        (c.baseChange R').comp (e.symm.toAlgHom.restrictScalars R) := by
+        ((Coaction.trivial (R := R) (H := H)).baseChangeρ R') =
+        (c.baseChangeρ R').comp (e.symm.toAlgHom.restrictScalars R) := by
       apply AlgHom.ext
       intro y
       have h1 : Algebra.TensorProduct.map (e.toAlgHom.restrictScalars R) (AlgHom.id R H)
-          (c.baseChange R' (e.symm y)) = (Coaction.trivial (R := R) (H := H)).baseChange R' y := by
+          (c.baseChangeρ R' (e.symm y)) = (Coaction.trivial (R := R) (H := H)).baseChangeρ R' y := by
         have := congrArg (fun φ : R' ⊗[R] A →ₐ[R] (R' ⊗[R] H) ⊗[R] H => φ (e.symm y)) he
         simpa using this
       simp only [AlgHom.coe_comp, Function.comp_apply]
@@ -482,8 +481,8 @@ theorem IsTorsor.nonempty_iso_trivial_of_point {A : Type u} [CommRing A] [Algebr
       rfl
     let φ : R' ⊗[R] H →ₐ[R'] R' ⊗[R] H := Ψ.comp e.symm.toAlgHom
     have hφ : (Algebra.TensorProduct.map (φ.restrictScalars R) (AlgHom.id R H)).comp
-        ((Coaction.trivial (R := R) (H := H)).baseChange R') =
-        ((Coaction.trivial (R := R) (H := H)).baseChange R').comp (φ.restrictScalars R) := by
+        ((Coaction.trivial (R := R) (H := H)).baseChangeρ R') =
+        ((Coaction.trivial (R := R) (H := H)).baseChangeρ R').comp (φ.restrictScalars R) := by
       have hsplit : φ.restrictScalars R =
           (Ψ.restrictScalars R).comp (e.symm.toAlgHom.restrictScalars R) := rfl
       rw [hsplit, ← AlgHom.comp_id (AlgHom.id R H), Algebra.TensorProduct.map_comp,
